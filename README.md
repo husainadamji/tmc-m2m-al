@@ -1,11 +1,9 @@
 # TMC-M2M-AL: Multi-Objective Active Learning for Methane-to-Methanol Catalysis
 
-This repository implements a **multi-objective Bayesian active learning** pipeline for exploring **transition-metal complex (TMC)** design spaces toward **methane-to-methanol (M2M)** catalysis. The method uses **2D Expected Hypervolume Improvement (EHVI)** with neural network surrogates to select candidates for expensive (e.g. DFT) evaluation on two objectives:
+This repository implements a **multi-objective Bayesian active learning** pipeline for exploring **transition-metal complex (TMC)** design spaces toward **methane-to-methanol (M2M)** catalysis. The method uses **2D Expected Hypervolume Improvement (EHVI)** with neural network surrogates to select candidates for DFT evaluations on two objectives:
 
 - **HAT** – Hydrogen atom transfer barrier ΔE(HAT) (minimize)
 - **Rebound** – |ΔE(rebound)| (minimize)
-
-The code is modular and suitable for reproduction and extension.
 
 ## Installation
 
@@ -16,8 +14,6 @@ pip install -r requirements.txt
 ```
 
 Run all script commands from the repository root (e.g. `python scripts/train.py ...`).
-
-For design-space functionalization and ligand complexity scores (optional), see **Design space functionalization** below and `requirements-functionalization.txt`.
 
 ## Project structure
 
@@ -147,25 +143,6 @@ For run **g<N>** (you have labeled data through generation N):
 
 4. Run DFT on `runs/g7/batch_next.csv`, merge new labels into your feature table, and create **run g8**: put the cumulative labeled CSV at `runs/g8/labeled.csv`, then retrain and repeat from step 1 for g8.
 
-## Full workflow checklist (reproduction)
-
-The following maps a complete project flow to the current scripts and **consistent data file names**. All paths use `runs/g<N>/`, `data/`, and the names below.
-
-| Step | What you do | Scripts / files |
-|------|-------------|------------------|
-| **1** | Featurize original design space | `featurize.py --mode initial` → `data/candidates_initial.csv` and `data/featurization_failed.csv` (failed log) |
-| **2** | Initial training (no f_RACs), with hyperopt | `train.py --mode initial` on `runs/g0/labeled.csv` → `runs/g0/models/HAT`, `runs/g0/models/rebound` |
-| **3** | Predict on full design space | `predict.py` with `--design-space-csv data/candidates_initial.csv` (no `--json-dir` needed) → `runs/g0/predictions_HAT.csv`, `runs/g0/predictions_rebound.csv` |
-| **4** | 2D-EHVI and select batch | `compute_pareto.py` → `runs/g0/pareto.npz`; `select_batch.py` with `--features-csv data/candidates_initial.csv` (omit `--json-dir` for CSV-only) → `runs/g0/batch_next.csv` |
-| **5** | Generations 1–4: retrain, then predict (skip already initiated), then EHVI. For gen 2, add Tanimoto. | Retrain: `train.py --mode retrain --load-from runs/g<N-1>/models/...`. Predict: `predict.py --skip-from runs/g1/batch_next.csv ... runs/g<N-1>/batch_next.csv`. For gen 2 batch: `select_batch.py ... --reference-csv <failed-or-reference>.csv --tanimoto-threshold 0.842`. |
-| **6** | After gen 4: functionalize design space | `functionalize.py` → `data/ligands_functionalized.csv`; optionally `score_ligands.py` → `data/ligands_functionalized_scored.csv` |
-| **7** | Re-featurize expanded design space | `featurize.py --mode functionalized` → `data/featurization/features_<idx>.json` only (no combined CSV) |
-| **8** | Retrain on gen 0–4 data with hyperopt again, **including f_RACs** | `train.py --mode initial --include-f-racs` on cumulative labeled CSV (e.g. `runs/g4/labeled.csv`), write to new model dir (e.g. `runs/g5/models/`) |
-| **9** | Predict on design space, skip already initiated | `predict.py --design-space-csv data/candidates_initial.csv --json-dir data/featurization --skip-from runs/g1/batch_next.csv ... runs/g4/batch_next.csv` |
-| **10** | 2D-EHVI to select next batch | `compute_pareto.py` (on current run’s `labeled.csv`); `select_batch.py --features-csv data/candidates_initial.csv --json-dir data/featurization` → `runs/g5/batch_next.csv` (or your run folder) |
-
-Design space: **initial** = `data/candidates_initial.csv` (CSV only). **Post-functionalization** = pass **both** that CSV and **`data/featurization/`** (JSON dir) so the full space is old + new. Training: **initial without f_RACs** (step 2) vs **initial with `--include-f-racs`** (step 8); **retrain** (step 5) keeps the same feature set as the loaded model.
-
 ## Data file naming (canonical)
 
 All scripts and docs use these names for consistency:
@@ -197,32 +174,6 @@ At **start**: create `runs/g0/` and put your first labeled CSV there as `runs/g0
 | **functionalize.py** | **`--axial-ligands-dir`**: directory of monodentate `.mol2` files (e.g. `data/axial_ligands/`). **`--tetra-csv`**: tetradentate input (e.g. `data/tetra_ligands.csv`). **`--out-csv`**: e.g. `data/ligands_functionalized.csv`. |
 | **score_ligands.py** | CSV with mol2 column (e.g. output of functionalize.py). **`--out`**: e.g. `data/ligands_functionalized_scored.csv`. Optionally **`--sc-model`** for SCScore. |
 
-
-## Training from scratch (run g0)
-
-Create `runs/g0/labeled.csv` with columns `name`, feature columns, `HAT (kcal/mol)`, `rebound (kcal/mol)`. Then:
-
-```bash
-python scripts/train.py --mode initial --target HAT --data-csv runs/g0/labeled.csv --model-dir runs/g0/models/HAT
-python scripts/train.py --mode initial --target rebound --data-csv runs/g0/labeled.csv --model-dir runs/g0/models/rebound
-```
-
-Each `model_dir` will contain:
-
-- `nn_HAT.h5` or `nn_rebound.h5`
-- `inv_hessian_and_scale_factor.npz`
-- `best_hyperparameters.json`
-- `*_model_performance.txt`
-- `*_parity_w_error_bars.png`
-
-Lookahead errors (e.g. MAE per generation) can be computed from the labeled CSVs and prediction outputs in each run folder.
-
-
-
-## References
-
-- **2D EHVI**: M. Emmerich, K. Yang, A. Deutz, H. Wang, and C. M. Fonseca, “A Multicriteria Generalization of Bayesian Global Optimization,” *EMO 2015*, [DOI:10.1007/978-3-319-29975-4_12](https://doi.org/10.1007/978-3-319-29975-4_12).
-- Uncertainty via last-layer Laplace approximation (inverse Fisher information) for regression.
 
 ## Design space functionalization
 
@@ -257,14 +208,6 @@ Run **initial** featurization when you have the original tetra CSV and axial mol
 
 **Workflow order:** Functionalization (optional) → **Featurization** (this script) → design space ready → Training (on labeled subset) → compute_pareto → predict → select_batch → DFT → repeat.
 
-## Design space data (why CSV + JSON)
-
-The prediction and batch-selection scripts accept **both** a design-space CSV and a directory of JSON files. That’s because of how the design space is built in practice:
-
-- **Before functionalization**, the candidate set is smaller and lives in a single CSV (one row per complex, with `name` and feature columns).
-- **After functionalization**, the space is much larger (many derived complexes per base structure), and storing everything in one CSV is unwieldy. Featurization is then written as many files (e.g. `features_0.json`, `features_1.json`, …), each containing a list of featurized complexes with `name` and feature keys.
-
-So: **CSV** = initial design space; **JSON directory** = functionalized candidates (same feature schema). The loader iterates CSV first, then JSON. In this repo you pass **CSV only** (initial) or **both CSV and JSON** (post-functionalization); the CSV and JSON use the same feature list. No need to publish your actual CSV/JSON contents—just ensure your data matches this contract (or adapt the loader to your layout).
 
 ## Notes
 
