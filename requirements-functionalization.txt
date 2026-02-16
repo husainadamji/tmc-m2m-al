@@ -1,0 +1,8 @@
+# Optional: for active_learning.functionalization and scripts/functionalize.py, score_ligands.py
+# Install in addition to requirements.txt. SA_Score and SCScore are not on PyPI;
+# add them to your path (e.g. RDKit Contrib for SA_Score, scscore repo for SCScorer).
+
+rdkit
+# molSimplify  # install via conda or from source
+# SA_Score     # RDKit Contrib, typically at $CONDA_PREFIX/share/RDKit/Contrib
+# SCScore      # https://github.com/connorcoley/scscore ; add to PYTHONPATH

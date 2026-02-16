@@ -1,0 +1,29 @@
+# Example configuration for the active learning pipeline.
+# Copy to config.yaml and adjust paths. Scripts are run with CLI args; this is a reference.
+# Layout: one folder per run (runs/g0/, runs/g1/, ...). Shared design space in data/.
+
+paths:
+  # Design space: initial = CSV only; post-functionalization = CSV + JSON dir (same features)
+  design_space_csv: "data/candidates_initial.csv"
+  featurization_json_dir: "data/featurization"   # pass with design_space_csv for full space
+
+  # Example for run g7: paths inside the run folder
+  run_dir: "runs/g7"
+  # labeled.csv, pareto.npz, models/HAT, models/rebound, predictions_*.csv, batch_next.csv
+
+  # Pareto and predictions live inside run_dir, e.g.:
+  # pareto_npz: "runs/g7/pareto.npz"
+  # predictions_HAT: "runs/g7/predictions_HAT.csv"
+  # batch_next: "runs/g7/batch_next.csv"
+
+# Acquisition (select_batch.py)
+acquisition:
+  top_k: 100000
+  n_clusters: 200
+  batch_size: 10000
+
+# Training (train.py)
+training:
+  max_trials: 200
+  epochs: 4000
+  patience: 100
